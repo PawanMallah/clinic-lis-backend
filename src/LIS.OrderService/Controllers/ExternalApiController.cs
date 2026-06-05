@@ -45,7 +45,7 @@ public class ExternalApiController : ControllerBase
                      patient_gender, patient_mobile, external_order_id, source_system, priority, status, 
                      clinical_notes, created_at, updated_at)
               VALUES (@Id, @LabId, @PatientId, @PatientName, @PatientUhid, @PatientAge, 
-                     @PatientGender, @PatientMobile, @ExternalOrderId, @SourceSystem, @Priority, 'ordered',
+                     @PatientGender, @PatientMobile, @ExternalOrderId, @SourceSystem, @Priority::order_priority, 'ordered'::order_status,
                      @ClinicalNotes, NOW(), NOW())",
             new
             {
@@ -67,7 +67,7 @@ public class ExternalApiController : ControllerBase
         {
             await connection.ExecuteAsync(
                 @"INSERT INTO lab_order_tests (id, order_id, test_id, test_code, test_name, status, created_at, updated_at)
-                  VALUES (@Id, @OrderId, @TestId, @TestCode, @TestName, 'ordered', NOW(), NOW())",
+                  VALUES (@Id, @OrderId, @TestId, @TestCode, @TestName, 'ordered'::order_status, NOW(), NOW())",
                 new
                 {
                     Id = Guid.NewGuid(),
@@ -95,7 +95,7 @@ public class ExternalApiController : ControllerBase
 
         var order = await connection.QueryFirstOrDefaultAsync<dynamic>(
             @"SELECT id, patient_name AS PatientName, patient_uhid AS PatientUhid, 
-                     priority, status, external_order_id AS ExternalOrderId, 
+                     priority::text AS Priority, status::text AS Status, external_order_id AS ExternalOrderId, 
                      source_system AS SourceSystem, clinical_notes AS ClinicalNotes,
                      created_at AS CreatedAt, updated_at AS UpdatedAt
               FROM lab_orders 
@@ -106,7 +106,7 @@ public class ExternalApiController : ControllerBase
             return NotFound(ApiResponse<object>.Fail("Order not found"));
 
         var tests = await connection.QueryAsync<dynamic>(
-            @"SELECT id, test_code AS TestCode, test_name AS TestName, status
+            @"SELECT id, test_code AS TestCode, test_name AS TestName, status::text AS Status
               FROM lab_order_tests WHERE order_id = @OrderId",
             new { OrderId = id });
 
@@ -115,8 +115,8 @@ public class ExternalApiController : ControllerBase
             id = order.id.ToString(),
             patientName = order.PatientName,
             patientUhid = order.PatientUhid,
-            priority = order.priority,
-            status = order.status,
+            priority = order.Priority,
+            status = order.Status,
             externalOrderId = order.ExternalOrderId,
             sourceSystem = order.SourceSystem,
             clinicalNotes = order.ClinicalNotes,
@@ -125,7 +125,7 @@ public class ExternalApiController : ControllerBase
                 id = t.id.ToString(),
                 testCode = t.TestCode,
                 testName = t.TestName,
-                status = t.status
+                status = t.Status
             }),
             createdAt = order.CreatedAt,
             updatedAt = order.UpdatedAt
@@ -151,7 +151,7 @@ public class ExternalApiController : ControllerBase
             @"SELECT r.id, r.test_code AS TestCode, r.test_name AS TestName, 
                      r.parameter_name AS ParameterName, r.result_value AS ResultValue,
                      r.result_unit AS ResultUnit, r.reference_range AS ReferenceRange,
-                     r.flag AS Flag, r.status, r.verified_at AS VerifiedAt
+                     r.flag::text AS Flag, r.status AS Status, r.verified_at AS VerifiedAt
               FROM results r 
               WHERE r.order_id = @OrderId",
             new { OrderId = id });
@@ -169,7 +169,7 @@ public class ExternalApiController : ControllerBase
                 resultUnit = r.ResultUnit,
                 referenceRange = r.ReferenceRange,
                 flag = r.Flag,
-                status = r.status,
+                status = r.Status,
                 verifiedAt = r.VerifiedAt
             })
         }));
