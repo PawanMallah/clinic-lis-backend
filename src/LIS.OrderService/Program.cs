@@ -34,6 +34,7 @@ var app = builder.Build();
 app.UseCors();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseMiddleware<ApiKeyAuthMiddleware>();
 app.UseMiddleware<JwtClaimsMiddleware>();
 app.MapControllers();
 
