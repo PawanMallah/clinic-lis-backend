@@ -1,3 +1,4 @@
+using LIS.ResultService.Repositories;
 using Shared.Cache;
 using Shared.Extensions;
 using Shared.Middleware;
@@ -8,6 +9,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDapperContext(builder.Configuration);
 builder.Services.AddJwtHelper(builder.Configuration);
 builder.Services.AddRedisCache(builder.Configuration);
+
+// Register repositories
+builder.Services.AddScoped<IResultRepository, ResultRepository>();
 
 // Add controllers
 builder.Services.AddControllers();
