@@ -11,10 +11,12 @@ namespace LIS.OrderService.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly IOrderRepository _orderRepository;
+    private readonly ILogger<OrdersController> _logger;
 
-    public OrdersController(IOrderRepository orderRepository)
+    public OrdersController(IOrderRepository orderRepository, ILogger<OrdersController> logger)
     {
         _orderRepository = orderRepository;
+        _logger = logger;
     }
 
     private Guid GetLabId()
@@ -37,6 +39,10 @@ public class OrdersController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequest request)
     {
+        _logger.LogInformation("=== LIS: Received new lab order ===");
+        _logger.LogInformation("Patient: {PatientName} ({PatientUhid}), Tests: {TestCount}, Source: {Source}, Priority: {Priority}",
+            request.PatientName, request.PatientUhid, request.Tests.Count, request.SourceSystem, request.Priority);
+
         if (request.Tests.Count == 0)
             return BadRequest(ApiResponse<object>.Fail("At least one test is required"));
 
@@ -79,6 +85,9 @@ public class OrdersController : ControllerBase
         }).ToList();
 
         await _orderRepository.SaveOrderTestsAsync(created.Id, tests);
+
+        _logger.LogInformation("=== LIS: Order created successfully! ID: {OrderId}, Tests: {Tests} ===",
+            created.Id, string.Join(", ", tests.Select(t => t.TestName)));
 
         var response = MapToResponse(created, tests);
         return Created($"/orders/{created.Id}", ApiResponse<OrderResponse>.Ok(response, "Order created successfully"));
