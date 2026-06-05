@@ -34,7 +34,7 @@ var app = builder.Build();
 app.UseCors();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
-app.UseMiddleware<JwtClaimsMiddleware>();
+// app.UseMiddleware<JwtClaimsMiddleware>(); // Disabled for dev (no auth)
 app.MapControllers();
 
 app.Run();

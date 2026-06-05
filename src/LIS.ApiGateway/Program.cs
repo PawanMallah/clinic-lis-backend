@@ -59,8 +59,8 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseAuthentication();
-app.UseAuthorization();
+// app.UseAuthentication(); // Disabled for dev (no auth)
+// app.UseAuthorization(); // Disabled for dev (no auth)
 app.MapReverseProxy();
 
 app.Run();

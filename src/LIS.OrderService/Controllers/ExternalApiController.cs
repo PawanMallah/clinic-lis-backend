@@ -22,9 +22,10 @@ public class ExternalApiController : ControllerBase
     private Guid GetLabId()
     {
         var labIdStr = HttpContext.Items["labId"]?.ToString();
-        if (string.IsNullOrEmpty(labIdStr) || !Guid.TryParse(labIdStr, out var labId))
-            throw new UnauthorizedAccessException("Lab context not found");
-        return labId;
+        if (!string.IsNullOrEmpty(labIdStr) && Guid.TryParse(labIdStr, out var labId))
+            return labId;
+        // Default lab ID for development (no auth)
+        return Guid.Parse("00000000-0000-0000-0000-000000000001");
     }
 
     // POST /api/v1/orders — Create order from external system

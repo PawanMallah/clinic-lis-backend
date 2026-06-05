@@ -337,7 +337,11 @@ public class Hl7Controller : ControllerBase
 
     private Guid GetLabId()
     {
-        var labIdClaim = HttpContext.Items["LabId"]?.ToString();
-        return Guid.TryParse(labIdClaim, out var labId) ? labId : Guid.Empty;
+        var labIdClaim = HttpContext.Items["LabId"]?.ToString()
+                      ?? HttpContext.Items["labId"]?.ToString();
+        if (Guid.TryParse(labIdClaim, out var labId))
+            return labId;
+        // Default lab ID for development (no auth)
+        return Guid.Parse("00000000-0000-0000-0000-000000000001");
     }
 }
