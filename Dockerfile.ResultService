@@ -1,0 +1,18 @@
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-preview AS base
+WORKDIR /app
+EXPOSE 6003
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
+WORKDIR /src
+COPY ["src/LIS.ResultService/LIS.ResultService.csproj", "src/LIS.ResultService/"]
+COPY ["src/Shared/Shared.csproj", "src/Shared/"]
+RUN dotnet restore "src/LIS.ResultService/LIS.ResultService.csproj"
+COPY . .
+WORKDIR "/src/src/LIS.ResultService"
+RUN dotnet publish -c Release -o /app/publish
+
+FROM base AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENV ASPNETCORE_URLS=http://+:6003
+ENTRYPOINT ["dotnet", "LIS.ResultService.dll"]

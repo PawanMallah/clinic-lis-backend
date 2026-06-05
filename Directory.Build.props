@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Disable StaticWebAssets for API-only projects (fixes .NET 10 SDK cache corruption issue) -->
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+  </PropertyGroup>
+</Project>

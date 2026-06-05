@@ -1,0 +1,18 @@
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-preview AS base
+WORKDIR /app
+EXPOSE 6000
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
+WORKDIR /src
+COPY ["src/LIS.ApiGateway/LIS.ApiGateway.csproj", "src/LIS.ApiGateway/"]
+COPY ["src/Shared/Shared.csproj", "src/Shared/"]
+RUN dotnet restore "src/LIS.ApiGateway/LIS.ApiGateway.csproj"
+COPY . .
+WORKDIR "/src/src/LIS.ApiGateway"
+RUN dotnet publish -c Release -o /app/publish
+
+FROM base AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENV ASPNETCORE_URLS=http://+:6000
+ENTRYPOINT ["dotnet", "LIS.ApiGateway.dll"]
