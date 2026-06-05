@@ -12,6 +12,7 @@ builder.Services.AddRedisCache(builder.Configuration);
 
 // Register repositories
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IPatientRepository, PatientRepository>();
 
 // Add controllers
 builder.Services.AddControllers();

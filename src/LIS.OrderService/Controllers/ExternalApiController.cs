@@ -1,5 +1,7 @@
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
+using LIS.OrderService.Models;
+using LIS.OrderService.Repositories;
 using Shared.Database;
 using Shared.DTOs;
 using System.Security.Cryptography;
@@ -13,10 +15,12 @@ namespace LIS.OrderService.Controllers;
 public class ExternalApiController : ControllerBase
 {
     private readonly DapperContext _db;
+    private readonly IPatientRepository _patientRepo;
 
-    public ExternalApiController(DapperContext db)
+    public ExternalApiController(DapperContext db, IPatientRepository patientRepo)
     {
         _db = db;
+        _patientRepo = patientRepo;
     }
 
     private Guid GetLabId()
@@ -37,22 +41,71 @@ public class ExternalApiController : ControllerBase
 
         var labId = GetLabId();
 
+        // --- Patient dedup/create logic ---
+        Guid? lisPatientId = null;
+        if (!string.IsNullOrWhiteSpace(request.PatientFirstName))
+        {
+            DateTime? dob = null;
+            if (!string.IsNullOrWhiteSpace(request.PatientDob) && DateTime.TryParse(request.PatientDob, out var parsedDob))
+                dob = parsedDob;
+
+            var existingPatient = await _patientRepo.FindByMatchAsync(labId, request.PatientFirstName, request.PatientMobile, dob);
+
+            if (existingPatient != null)
+            {
+                lisPatientId = existingPatient.Id;
+                // Update referred_by_doctor if provided
+                if (!string.IsNullOrWhiteSpace(request.ReferredByDoctor) && existingPatient.ReferredByDoctor != request.ReferredByDoctor)
+                {
+                    existingPatient.ReferredByDoctor = request.ReferredByDoctor;
+                    await _patientRepo.UpdateAsync(existingPatient);
+                }
+            }
+            else
+            {
+                var newPatient = new Patient
+                {
+                    Id = Guid.NewGuid(),
+                    LabId = labId,
+                    FirstName = request.PatientFirstName,
+                    LastName = request.PatientLastName,
+                    FullName = string.IsNullOrWhiteSpace(request.PatientLastName)
+                        ? request.PatientFirstName
+                        : $"{request.PatientFirstName} {request.PatientLastName}",
+                    DateOfBirth = dob,
+                    Gender = request.PatientGender,
+                    Age = request.PatientAge,
+                    Mobile = request.PatientMobile,
+                    Address = request.PatientAddress,
+                    Uhid = request.PatientUhid,
+                    ReferredByDoctor = request.ReferredByDoctor,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                var created = await _patientRepo.CreateAsync(newPatient);
+                lisPatientId = created.Id;
+            }
+        }
+
         using var connection = _db.CreateConnection();
 
         var orderId = Guid.NewGuid();
         await connection.ExecuteAsync(
             @"INSERT INTO lab_orders (id, lab_id, patient_id, patient_name, patient_uhid, patient_age, 
                      patient_gender, patient_mobile, external_order_id, source_system, priority, status, 
-                     clinical_notes, created_at, updated_at)
+                     clinical_notes, lis_patient_id, created_at, updated_at)
               VALUES (@Id, @LabId, @PatientId, @PatientName, @PatientUhid, @PatientAge, 
                      @PatientGender, @PatientMobile, @ExternalOrderId, @SourceSystem, @Priority::order_priority, 'ordered'::order_status,
-                     @ClinicalNotes, NOW(), NOW())",
+                     @ClinicalNotes, @LisPatientId, NOW(), NOW())",
             new
             {
                 Id = orderId,
                 LabId = labId,
                 request.PatientId,
-                request.PatientName,
+                PatientName = request.PatientName ?? (request.PatientFirstName != null
+                    ? $"{request.PatientFirstName} {request.PatientLastName}".Trim()
+                    : null),
                 request.PatientUhid,
                 request.PatientAge,
                 request.PatientGender,
@@ -60,7 +113,8 @@ public class ExternalApiController : ControllerBase
                 request.ExternalOrderId,
                 SourceSystem = request.SourceSystem ?? "external_api",
                 Priority = request.Priority ?? "routine",
-                request.ClinicalNotes
+                request.ClinicalNotes,
+                LisPatientId = lisPatientId
             });
 
         foreach (var test in request.Tests)
@@ -82,7 +136,8 @@ public class ExternalApiController : ControllerBase
         {
             orderId = orderId.ToString(),
             status = "ordered",
-            testsCount = request.Tests.Count
+            testsCount = request.Tests.Count,
+            patientId = lisPatientId?.ToString()
         }, "Order created successfully"));
     }
 
@@ -221,65 +276,66 @@ public class ExternalApiController : ControllerBase
     [HttpPost("patients")]
     public async Task<IActionResult> RegisterPatient([FromBody] ExternalPatientRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
+        if (string.IsNullOrWhiteSpace(request.FirstName) && string.IsNullOrWhiteSpace(request.Name))
             return BadRequest(ApiResponse<object>.Fail("Patient name is required"));
 
         var labId = GetLabId();
-        using var connection = _db.CreateConnection();
 
-        // Check if patient exists by UHID
-        Guid? existingId = null;
-        if (!string.IsNullOrWhiteSpace(request.Uhid))
+        var firstName = request.FirstName ?? request.Name!;
+        var mobile = request.Mobile;
+        DateTime? dob = null;
+        if (!string.IsNullOrWhiteSpace(request.Dob))
         {
-            existingId = await connection.QueryFirstOrDefaultAsync<Guid?>(
-                "SELECT id FROM patients WHERE uhid = @Uhid AND lab_id = @LabId",
-                new { request.Uhid, LabId = labId });
+            if (DateTime.TryParse(request.Dob, out var parsedDob))
+                dob = parsedDob;
         }
 
-        if (existingId.HasValue)
+        // Try dedup match
+        var existing = await _patientRepo.FindByMatchAsync(labId, firstName, mobile, dob);
+
+        if (existing != null)
         {
-            // Update existing patient
-            await connection.ExecuteAsync(
-                @"UPDATE patients SET name = @Name, age = @Age, gender = @Gender, 
-                         mobile = @Mobile, email = @Email, updated_at = NOW()
-                  WHERE id = @Id",
-                new
-                {
-                    Id = existingId.Value,
-                    request.Name,
-                    request.Age,
-                    request.Gender,
-                    request.Mobile,
-                    request.Email
-                });
+            // Update existing patient with any new data
+            existing.Gender = request.Gender ?? existing.Gender;
+            existing.Age = request.Age ?? existing.Age;
+            existing.Email = request.Email ?? existing.Email;
+            existing.Address = request.Address ?? existing.Address;
+            existing.Uhid = request.Uhid ?? existing.Uhid;
+            existing.ReferredByDoctor = request.ReferredByDoctor ?? existing.ReferredByDoctor;
+            await _patientRepo.UpdateAsync(existing);
 
             return Ok(ApiResponse<object>.Ok(new
             {
-                patientId = existingId.Value.ToString(),
+                patientId = existing.Id.ToString(),
                 action = "updated"
             }, "Patient updated"));
         }
         else
         {
-            var patientId = Guid.NewGuid();
-            await connection.ExecuteAsync(
-                @"INSERT INTO patients (id, lab_id, uhid, name, age, gender, mobile, email, created_at, updated_at)
-                  VALUES (@Id, @LabId, @Uhid, @Name, @Age, @Gender, @Mobile, @Email, NOW(), NOW())",
-                new
-                {
-                    Id = patientId,
-                    LabId = labId,
-                    request.Uhid,
-                    request.Name,
-                    request.Age,
-                    request.Gender,
-                    request.Mobile,
-                    request.Email
-                });
-
-            return Created($"/api/v1/patients/{patientId}", ApiResponse<object>.Ok(new
+            var newPatient = new Patient
             {
-                patientId = patientId.ToString(),
+                Id = Guid.NewGuid(),
+                LabId = labId,
+                FirstName = firstName,
+                LastName = request.LastName,
+                FullName = string.IsNullOrWhiteSpace(request.LastName) ? firstName : $"{firstName} {request.LastName}",
+                DateOfBirth = dob,
+                Gender = request.Gender,
+                Age = request.Age,
+                Mobile = mobile,
+                Email = request.Email,
+                Address = request.Address,
+                Uhid = request.Uhid,
+                ReferredByDoctor = request.ReferredByDoctor,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            var created = await _patientRepo.CreateAsync(newPatient);
+
+            return Created($"/api/v1/patients/{created.Id}", ApiResponse<object>.Ok(new
+            {
+                patientId = created.Id.ToString(),
                 action = "created"
             }, "Patient registered"));
         }
@@ -351,11 +407,16 @@ public class ExternalApiController : ControllerBase
 public class ExternalCreateOrderRequest
 {
     public Guid? PatientId { get; set; }
-    public string PatientName { get; set; } = string.Empty;
+    public string? PatientName { get; set; }
+    public string? PatientFirstName { get; set; }
+    public string? PatientLastName { get; set; }
+    public string? PatientDob { get; set; }  // ISO date string
     public string? PatientUhid { get; set; }
     public int? PatientAge { get; set; }
     public string? PatientGender { get; set; }
     public string? PatientMobile { get; set; }
+    public string? PatientAddress { get; set; }
+    public string? ReferredByDoctor { get; set; }
     public string? ExternalOrderId { get; set; }
     public string? SourceSystem { get; set; }
     public string? Priority { get; set; }
@@ -373,11 +434,16 @@ public class ExternalTestItem
 public class ExternalPatientRequest
 {
     public string? Uhid { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public string? Name { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? Dob { get; set; }  // ISO date string
     public int? Age { get; set; }
     public string? Gender { get; set; }
     public string? Mobile { get; set; }
     public string? Email { get; set; }
+    public string? Address { get; set; }
+    public string? ReferredByDoctor { get; set; }
 }
 
 public class RegisterWebhookRequest
