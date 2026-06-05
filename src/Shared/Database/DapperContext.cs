@@ -14,6 +14,12 @@ public class DapperContext
 
     public IDbConnection CreateConnection()
     {
-        return new NpgsqlConnection(_connectionString);
+        var connection = new NpgsqlConnection(_connectionString);
+        connection.Open();
+        // Ensure lis schema is in search path
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SET search_path TO lis, public;";
+        cmd.ExecuteNonQuery();
+        return connection;
     }
 }
