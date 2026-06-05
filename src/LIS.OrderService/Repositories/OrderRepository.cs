@@ -17,7 +17,12 @@ public class OrderRepository : BaseRepository, IOrderRepository
             VALUES (@Id, @LabId, @PatientId, @PatientName, @PatientUhid, @PatientAge, 
                 @PatientGender, @PatientMobile, @ExternalOrderId, @SourceSystem, @Priority::order_priority, @Status::order_status,
                 @OrderedBy, @OrderedByName, @ClinicalNotes, @CreatedAt, @UpdatedAt)
-            RETURNING *";
+            RETURNING id AS Id, lab_id AS LabId, patient_id AS PatientId, patient_name AS PatientName,
+                patient_uhid AS PatientUhid, patient_age AS PatientAge, patient_gender AS PatientGender,
+                patient_mobile AS PatientMobile, external_order_id AS ExternalOrderId,
+                source_system AS SourceSystem, priority::text AS Priority, status::text AS Status,
+                ordered_by AS OrderedBy, ordered_by_name AS OrderedByName, clinical_notes AS ClinicalNotes,
+                created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         using var connection = Connection;
         var result = await connection.QuerySingleAsync<LabOrder>(sql, order);
@@ -26,7 +31,14 @@ public class OrderRepository : BaseRepository, IOrderRepository
 
     public async Task<LabOrder?> GetByIdAsync(Guid id)
     {
-        const string sql = "SELECT * FROM lab_orders WHERE id = @Id";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, patient_id AS PatientId, patient_name AS PatientName,
+                patient_uhid AS PatientUhid, patient_age AS PatientAge, patient_gender AS PatientGender,
+                patient_mobile AS PatientMobile, external_order_id AS ExternalOrderId,
+                source_system AS SourceSystem, priority::text AS Priority, status::text AS Status,
+                ordered_by AS OrderedBy, ordered_by_name AS OrderedByName, clinical_notes AS ClinicalNotes,
+                created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM lab_orders WHERE id = @Id";
 
         using var connection = Connection;
         return await connection.QuerySingleOrDefaultAsync<LabOrder>(sql, new { Id = id });
@@ -34,7 +46,13 @@ public class OrderRepository : BaseRepository, IOrderRepository
 
     public async Task<List<LabOrder>> GetAllAsync(Guid labId, string? status, string? priority, string? search, int page, int pageSize)
     {
-        var sql = @"SELECT * FROM lab_orders WHERE lab_id = @LabId";
+        var sql = @"SELECT id, lab_id AS LabId, patient_id AS PatientId, patient_name AS PatientName, 
+                           patient_uhid AS PatientUhid, patient_age AS PatientAge, patient_gender AS PatientGender,
+                           patient_mobile AS PatientMobile, external_order_id AS ExternalOrderId,
+                           source_system AS SourceSystem, priority::text AS Priority, status::text AS Status,
+                           ordered_by AS OrderedBy, ordered_by_name AS OrderedByName, clinical_notes AS ClinicalNotes,
+                           created_at AS CreatedAt, updated_at AS UpdatedAt
+                    FROM lab_orders WHERE lab_id = @LabId";
         var parameters = new DynamicParameters();
         parameters.Add("LabId", labId);
 
@@ -118,7 +136,14 @@ public class OrderRepository : BaseRepository, IOrderRepository
 
     public async Task<List<LabOrderTest>> GetOrderTestsAsync(Guid orderId)
     {
-        const string sql = "SELECT * FROM lab_order_tests WHERE order_id = @OrderId ORDER BY created_at";
+        const string sql = @"
+            SELECT id AS Id, order_id AS OrderId, test_id AS TestId, test_code AS TestCode,
+                test_name AS TestName, status::text AS Status, specimen_id AS SpecimenId,
+                result_value AS ResultValue, result_unit AS ResultUnit, result_flag::text AS ResultFlag,
+                reference_low AS ReferenceLow, reference_high AS ReferenceHigh,
+                verified_by AS VerifiedBy, verified_at AS VerifiedAt, reported_at AS ReportedAt,
+                created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM lab_order_tests WHERE order_id = @OrderId ORDER BY created_at";
 
         using var connection = Connection;
         var results = await connection.QueryAsync<LabOrderTest>(sql, new { OrderId = orderId });

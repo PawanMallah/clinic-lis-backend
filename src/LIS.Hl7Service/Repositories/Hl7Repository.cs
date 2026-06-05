@@ -19,7 +19,13 @@ public class Hl7Repository : BaseRepository, IHl7Repository
             VALUES (@Id, @LabId, @InstrumentName, @InstrumentModel, @Manufacturer,
                 @SerialNumber, @Host, @Port, @Protocol, @Direction, @Status, @AutoReconnect,
                 @TestCodeMapping::jsonb, @Settings::jsonb, @CreatedAt, @UpdatedAt)
-            RETURNING *";
+            RETURNING id AS Id, lab_id AS LabId, instrument_name AS InstrumentName,
+                instrument_model AS InstrumentModel, manufacturer AS Manufacturer,
+                serial_number AS SerialNumber, host AS Host, port AS Port, protocol AS Protocol,
+                direction AS Direction, status AS Status, auto_reconnect AS AutoReconnect,
+                last_connected_at AS LastConnectedAt, last_message_at AS LastMessageAt,
+                test_code_mapping AS TestCodeMapping, settings AS Settings,
+                created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         using var connection2 = Connection;
         return await connection2.QuerySingleAsync<Hl7Connection>(sql, connection);
@@ -27,7 +33,15 @@ public class Hl7Repository : BaseRepository, IHl7Repository
 
     public async Task<Hl7Connection?> GetConnectionByIdAsync(Guid id)
     {
-        const string sql = "SELECT * FROM hl7_connections WHERE id = @Id";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, instrument_name AS InstrumentName,
+                instrument_model AS InstrumentModel, manufacturer AS Manufacturer,
+                serial_number AS SerialNumber, host AS Host, port AS Port, protocol AS Protocol,
+                direction AS Direction, status AS Status, auto_reconnect AS AutoReconnect,
+                last_connected_at AS LastConnectedAt, last_message_at AS LastMessageAt,
+                test_code_mapping AS TestCodeMapping, settings AS Settings,
+                created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM hl7_connections WHERE id = @Id";
 
         using var connection = Connection;
         return await connection.QuerySingleOrDefaultAsync<Hl7Connection>(sql, new { Id = id });
@@ -35,7 +49,15 @@ public class Hl7Repository : BaseRepository, IHl7Repository
 
     public async Task<List<Hl7Connection>> GetAllConnectionsAsync(Guid labId)
     {
-        const string sql = "SELECT * FROM hl7_connections WHERE lab_id = @LabId ORDER BY created_at DESC";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, instrument_name AS InstrumentName,
+                instrument_model AS InstrumentModel, manufacturer AS Manufacturer,
+                serial_number AS SerialNumber, host AS Host, port AS Port, protocol AS Protocol,
+                direction AS Direction, status AS Status, auto_reconnect AS AutoReconnect,
+                last_connected_at AS LastConnectedAt, last_message_at AS LastMessageAt,
+                test_code_mapping AS TestCodeMapping, settings AS Settings,
+                created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM hl7_connections WHERE lab_id = @LabId ORDER BY created_at DESC";
 
         using var connection = Connection;
         var results = await connection.QueryAsync<Hl7Connection>(sql, new { LabId = labId });
@@ -44,7 +66,15 @@ public class Hl7Repository : BaseRepository, IHl7Repository
 
     public async Task<List<Hl7Connection>> GetActiveConnectionsAsync()
     {
-        const string sql = "SELECT * FROM hl7_connections WHERE status != 'error' AND auto_reconnect = true";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, instrument_name AS InstrumentName,
+                instrument_model AS InstrumentModel, manufacturer AS Manufacturer,
+                serial_number AS SerialNumber, host AS Host, port AS Port, protocol AS Protocol,
+                direction AS Direction, status AS Status, auto_reconnect AS AutoReconnect,
+                last_connected_at AS LastConnectedAt, last_message_at AS LastMessageAt,
+                test_code_mapping AS TestCodeMapping, settings AS Settings,
+                created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM hl7_connections WHERE status != 'error' AND auto_reconnect = true";
 
         using var connection = Connection;
         var results = await connection.QueryAsync<Hl7Connection>(sql);
@@ -109,7 +139,12 @@ public class Hl7Repository : BaseRepository, IHl7Repository
     public async Task<List<Hl7MessageLog>> GetMessageLogsAsync(Guid connectionId, int page, int pageSize)
     {
         const string sql = @"
-            SELECT * FROM hl7_message_log 
+            SELECT id AS Id, connection_id AS ConnectionId, direction AS Direction,
+                message_type AS MessageType, trigger_event AS TriggerEvent, control_id AS ControlId,
+                raw_message AS RawMessage, parsed_json AS ParsedJson, status AS Status,
+                error_message AS ErrorMessage, processing_time_ms AS ProcessingTimeMs,
+                created_at AS CreatedAt
+            FROM hl7_message_log 
             WHERE connection_id = @ConnectionId 
             ORDER BY created_at DESC 
             LIMIT @PageSize OFFSET @Offset";
@@ -126,7 +161,13 @@ public class Hl7Repository : BaseRepository, IHl7Repository
 
     public async Task<Hl7MessageLog?> GetMessageLogByIdAsync(Guid id)
     {
-        const string sql = "SELECT * FROM hl7_message_log WHERE id = @Id";
+        const string sql = @"
+            SELECT id AS Id, connection_id AS ConnectionId, direction AS Direction,
+                message_type AS MessageType, trigger_event AS TriggerEvent, control_id AS ControlId,
+                raw_message AS RawMessage, parsed_json AS ParsedJson, status AS Status,
+                error_message AS ErrorMessage, processing_time_ms AS ProcessingTimeMs,
+                created_at AS CreatedAt
+            FROM hl7_message_log WHERE id = @Id";
 
         using var connection = Connection;
         return await connection.QuerySingleOrDefaultAsync<Hl7MessageLog>(sql, new { Id = id });
@@ -151,7 +192,10 @@ public class Hl7Repository : BaseRepository, IHl7Repository
                 lis_test_id, lis_test_code, lis_test_name, is_active, created_at)
             VALUES (@Id, @ConnectionId, @InstrumentTestCode, @InstrumentTestName,
                 @LisTestId, @LisTestCode, @LisTestName, @IsActive, @CreatedAt)
-            RETURNING *";
+            RETURNING id AS Id, connection_id AS ConnectionId, instrument_test_code AS InstrumentTestCode,
+                instrument_test_name AS InstrumentTestName, lis_test_id AS LisTestId,
+                lis_test_code AS LisTestCode, lis_test_name AS LisTestName,
+                is_active AS IsActive, created_at AS CreatedAt";
 
         using var connection = Connection;
         return await connection.QuerySingleAsync<InstrumentTestMapping>(sql, mapping);
@@ -160,7 +204,11 @@ public class Hl7Repository : BaseRepository, IHl7Repository
     public async Task<List<InstrumentTestMapping>> GetMappingsAsync(Guid connectionId)
     {
         const string sql = @"
-            SELECT * FROM instrument_test_mapping 
+            SELECT id AS Id, connection_id AS ConnectionId, instrument_test_code AS InstrumentTestCode,
+                instrument_test_name AS InstrumentTestName, lis_test_id AS LisTestId,
+                lis_test_code AS LisTestCode, lis_test_name AS LisTestName,
+                is_active AS IsActive, created_at AS CreatedAt
+            FROM instrument_test_mapping 
             WHERE connection_id = @ConnectionId 
             ORDER BY instrument_test_code";
 

@@ -15,7 +15,12 @@ public class ReportRepository : BaseRepository, IReportRepository
                 report_pdf_url, report_json, generated_at, version, created_at, updated_at)
             VALUES (@Id, @LabId, @OrderId, @PatientName, @ReportNumber, @Status, 
                 @ReportPdfUrl, @ReportJson::jsonb, @GeneratedAt, @Version, @CreatedAt, @UpdatedAt)
-            RETURNING *";
+            RETURNING id AS Id, lab_id AS LabId, order_id AS OrderId, patient_name AS PatientName,
+                report_number AS ReportNumber, status AS Status, report_pdf_url AS ReportPdfUrl,
+                report_json AS ReportJson, generated_at AS GeneratedAt, delivered_at AS DeliveredAt,
+                delivered_via AS DeliveredVia, version AS Version, amendment_reason AS AmendmentReason,
+                signed_by AS SignedBy, signed_by_name AS SignedByName, signed_at AS SignedAt,
+                created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         using var connection = Connection;
         return await connection.QuerySingleAsync<LabReport>(sql, report);
@@ -23,7 +28,14 @@ public class ReportRepository : BaseRepository, IReportRepository
 
     public async Task<LabReport?> GetByIdAsync(Guid id)
     {
-        const string sql = "SELECT * FROM lab_reports WHERE id = @Id";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, order_id AS OrderId, patient_name AS PatientName,
+                report_number AS ReportNumber, status AS Status, report_pdf_url AS ReportPdfUrl,
+                report_json AS ReportJson, generated_at AS GeneratedAt, delivered_at AS DeliveredAt,
+                delivered_via AS DeliveredVia, version AS Version, amendment_reason AS AmendmentReason,
+                signed_by AS SignedBy, signed_by_name AS SignedByName, signed_at AS SignedAt,
+                created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM lab_reports WHERE id = @Id";
 
         using var connection = Connection;
         return await connection.QuerySingleOrDefaultAsync<LabReport>(sql, new { Id = id });
@@ -31,7 +43,14 @@ public class ReportRepository : BaseRepository, IReportRepository
 
     public async Task<LabReport?> GetByOrderIdAsync(Guid orderId)
     {
-        const string sql = "SELECT * FROM lab_reports WHERE order_id = @OrderId ORDER BY version DESC LIMIT 1";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, order_id AS OrderId, patient_name AS PatientName,
+                report_number AS ReportNumber, status AS Status, report_pdf_url AS ReportPdfUrl,
+                report_json AS ReportJson, generated_at AS GeneratedAt, delivered_at AS DeliveredAt,
+                delivered_via AS DeliveredVia, version AS Version, amendment_reason AS AmendmentReason,
+                signed_by AS SignedBy, signed_by_name AS SignedByName, signed_at AS SignedAt,
+                created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM lab_reports WHERE order_id = @OrderId ORDER BY version DESC LIMIT 1";
 
         using var connection = Connection;
         return await connection.QuerySingleOrDefaultAsync<LabReport>(sql, new { OrderId = orderId });
@@ -76,7 +95,12 @@ public class ReportRepository : BaseRepository, IReportRepository
                 report_pdf_url, report_json, generated_at, version, amendment_reason, created_at, updated_at)
             VALUES (@Id, @LabId, @OrderId, @PatientName, @ReportNumber, @Status, 
                 @ReportPdfUrl, @ReportJson::jsonb, @GeneratedAt, @Version, @AmendmentReason, @CreatedAt, @UpdatedAt)
-            RETURNING *";
+            RETURNING id AS Id, lab_id AS LabId, order_id AS OrderId, patient_name AS PatientName,
+                report_number AS ReportNumber, status AS Status, report_pdf_url AS ReportPdfUrl,
+                report_json AS ReportJson, generated_at AS GeneratedAt, delivered_at AS DeliveredAt,
+                delivered_via AS DeliveredVia, version AS Version, amendment_reason AS AmendmentReason,
+                signed_by AS SignedBy, signed_by_name AS SignedByName, signed_at AS SignedAt,
+                created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         using var connection = Connection;
         return await connection.QuerySingleAsync<LabReport>(sql, report);
@@ -84,7 +108,13 @@ public class ReportRepository : BaseRepository, IReportRepository
 
     public async Task<List<LabReport>> GetReportsAsync(Guid labId, string? status, DateTime? fromDate, DateTime? toDate, int page, int pageSize)
     {
-        var sql = "SELECT * FROM lab_reports WHERE lab_id = @LabId";
+        var sql = @"SELECT id AS Id, lab_id AS LabId, order_id AS OrderId, patient_name AS PatientName,
+                report_number AS ReportNumber, status AS Status, report_pdf_url AS ReportPdfUrl,
+                report_json AS ReportJson, generated_at AS GeneratedAt, delivered_at AS DeliveredAt,
+                delivered_via AS DeliveredVia, version AS Version, amendment_reason AS AmendmentReason,
+                signed_by AS SignedBy, signed_by_name AS SignedByName, signed_at AS SignedAt,
+                created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM lab_reports WHERE lab_id = @LabId";
         var parameters = new DynamicParameters();
         parameters.Add("LabId", labId);
 

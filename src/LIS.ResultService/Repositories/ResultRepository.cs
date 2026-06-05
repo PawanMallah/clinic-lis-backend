@@ -20,7 +20,15 @@ public class ResultRepository : BaseRepository, IResultRepository
                 @ParameterName, @ResultValue, @ResultNumeric, @ResultUnit, @ReferenceLow, @ReferenceHigh,
                 @CriticalLow, @CriticalHigh, @Flag::result_flag, @IsCritical, @InstrumentId, @InstrumentName, @RawValue,
                 @Method, @Remarks, @EnteredBy, @EnteredByName, @EnteredAt, @Status, @CreatedAt, @UpdatedAt)
-            RETURNING *";
+            RETURNING id AS Id, lab_id AS LabId, order_id AS OrderId, order_test_id AS OrderTestId,
+                test_id AS TestId, test_code AS TestCode, test_name AS TestName,
+                parameter_name AS ParameterName, result_value AS ResultValue, result_numeric AS ResultNumeric,
+                result_unit AS ResultUnit, reference_low AS ReferenceLow, reference_high AS ReferenceHigh,
+                critical_low AS CriticalLow, critical_high AS CriticalHigh, flag::text AS Flag,
+                is_critical AS IsCritical, instrument_id AS InstrumentId, instrument_name AS InstrumentName,
+                raw_value AS RawValue, method AS Method, remarks AS Remarks,
+                entered_by AS EnteredBy, entered_by_name AS EnteredByName, entered_at AS EnteredAt,
+                status AS Status, created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         using var connection = Connection;
         return await connection.QuerySingleAsync<TestResult>(sql, result);
@@ -28,7 +36,17 @@ public class ResultRepository : BaseRepository, IResultRepository
 
     public async Task<TestResult?> GetByIdAsync(Guid id)
     {
-        const string sql = "SELECT * FROM test_results WHERE id = @Id";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, order_id AS OrderId, order_test_id AS OrderTestId,
+                test_id AS TestId, test_code AS TestCode, test_name AS TestName,
+                parameter_name AS ParameterName, result_value AS ResultValue, result_numeric AS ResultNumeric,
+                result_unit AS ResultUnit, reference_low AS ReferenceLow, reference_high AS ReferenceHigh,
+                critical_low AS CriticalLow, critical_high AS CriticalHigh, flag::text AS Flag,
+                is_critical AS IsCritical, instrument_id AS InstrumentId, instrument_name AS InstrumentName,
+                raw_value AS RawValue, method AS Method, remarks AS Remarks,
+                entered_by AS EnteredBy, entered_by_name AS EnteredByName, entered_at AS EnteredAt,
+                status AS Status, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM test_results WHERE id = @Id";
 
         using var connection = Connection;
         return await connection.QuerySingleOrDefaultAsync<TestResult>(sql, new { Id = id });
@@ -36,7 +54,17 @@ public class ResultRepository : BaseRepository, IResultRepository
 
     public async Task<TestResult?> GetByOrderTestIdAsync(Guid orderTestId)
     {
-        const string sql = "SELECT * FROM test_results WHERE order_test_id = @OrderTestId ORDER BY created_at DESC LIMIT 1";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, order_id AS OrderId, order_test_id AS OrderTestId,
+                test_id AS TestId, test_code AS TestCode, test_name AS TestName,
+                parameter_name AS ParameterName, result_value AS ResultValue, result_numeric AS ResultNumeric,
+                result_unit AS ResultUnit, reference_low AS ReferenceLow, reference_high AS ReferenceHigh,
+                critical_low AS CriticalLow, critical_high AS CriticalHigh, flag::text AS Flag,
+                is_critical AS IsCritical, instrument_id AS InstrumentId, instrument_name AS InstrumentName,
+                raw_value AS RawValue, method AS Method, remarks AS Remarks,
+                entered_by AS EnteredBy, entered_by_name AS EnteredByName, entered_at AS EnteredAt,
+                status AS Status, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM test_results WHERE order_test_id = @OrderTestId ORDER BY created_at DESC LIMIT 1";
 
         using var connection = Connection;
         return await connection.QuerySingleOrDefaultAsync<TestResult>(sql, new { OrderTestId = orderTestId });
@@ -44,7 +72,17 @@ public class ResultRepository : BaseRepository, IResultRepository
 
     public async Task<List<TestResult>> GetByOrderIdAsync(Guid orderId)
     {
-        const string sql = "SELECT * FROM test_results WHERE order_id = @OrderId ORDER BY test_name, parameter_name";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, order_id AS OrderId, order_test_id AS OrderTestId,
+                test_id AS TestId, test_code AS TestCode, test_name AS TestName,
+                parameter_name AS ParameterName, result_value AS ResultValue, result_numeric AS ResultNumeric,
+                result_unit AS ResultUnit, reference_low AS ReferenceLow, reference_high AS ReferenceHigh,
+                critical_low AS CriticalLow, critical_high AS CriticalHigh, flag::text AS Flag,
+                is_critical AS IsCritical, instrument_id AS InstrumentId, instrument_name AS InstrumentName,
+                raw_value AS RawValue, method AS Method, remarks AS Remarks,
+                entered_by AS EnteredBy, entered_by_name AS EnteredByName, entered_at AS EnteredAt,
+                status AS Status, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM test_results WHERE order_id = @OrderId ORDER BY test_name, parameter_name";
 
         using var connection = Connection;
         var results = await connection.QueryAsync<TestResult>(sql, new { OrderId = orderId });
@@ -75,11 +113,11 @@ public class ResultRepository : BaseRepository, IResultRepository
 
         var querySql = $@"
             SELECT ot.order_id AS OrderId, o.patient_name AS PatientName, o.patient_uhid AS PatientUhid,
-                   ot.test_code AS TestCode, ot.test_name AS TestName, o.priority AS Priority,
-                   ot.status AS Status, o.created_at AS OrderedAt
+                   ot.test_code AS TestCode, ot.test_name AS TestName, o.priority::text AS Priority,
+                   ot.status::text AS Status, o.created_at AS OrderedAt
             {baseSql}
             ORDER BY 
-                CASE o.priority 
+                CASE o.priority::text 
                     WHEN 'stat' THEN 1 
                     WHEN 'asap' THEN 2 
                     WHEN 'urgent' THEN 3 
@@ -112,7 +150,11 @@ public class ResultRepository : BaseRepository, IResultRepository
     public async Task<List<ResultVerification>> GetVerificationsAsync(Guid resultId)
     {
         const string sql = @"
-            SELECT * FROM result_verifications 
+            SELECT id AS Id, result_id AS ResultId, verification_level::text AS VerificationLevel,
+                verified_by AS VerifiedBy, verified_by_name AS VerifiedByName,
+                verified_at AS VerifiedAt, status AS Status, comments AS Comments,
+                previous_value AS PreviousValue, corrected_value AS CorrectedValue
+            FROM result_verifications 
             WHERE result_id = @ResultId 
             ORDER BY verified_at DESC";
 
@@ -146,7 +188,12 @@ public class ResultRepository : BaseRepository, IResultRepository
 
     public async Task<List<CriticalAlert>> GetCriticalAlertsAsync(Guid labId, bool unacknowledgedOnly)
     {
-        var sql = "SELECT * FROM critical_alerts WHERE lab_id = @LabId";
+        var sql = @"SELECT id AS Id, lab_id AS LabId, result_id AS ResultId, order_id AS OrderId,
+                patient_name AS PatientName, test_name AS TestName, result_value AS ResultValue,
+                critical_type AS CriticalType, acknowledged_by AS AcknowledgedBy,
+                acknowledged_at AS AcknowledgedAt, notified_doctor AS NotifiedDoctor,
+                created_at AS CreatedAt
+            FROM critical_alerts WHERE lab_id = @LabId";
 
         if (unacknowledgedOnly)
             sql += " AND acknowledged_at IS NULL";
@@ -186,7 +233,16 @@ public class ResultRepository : BaseRepository, IResultRepository
         if (!patientId.HasValue) return new List<TestResult>();
 
         const string sql = @"
-            SELECT tr.* FROM test_results tr
+            SELECT tr.id AS Id, tr.lab_id AS LabId, tr.order_id AS OrderId, tr.order_test_id AS OrderTestId,
+                tr.test_id AS TestId, tr.test_code AS TestCode, tr.test_name AS TestName,
+                tr.parameter_name AS ParameterName, tr.result_value AS ResultValue, tr.result_numeric AS ResultNumeric,
+                tr.result_unit AS ResultUnit, tr.reference_low AS ReferenceLow, tr.reference_high AS ReferenceHigh,
+                tr.critical_low AS CriticalLow, tr.critical_high AS CriticalHigh, tr.flag::text AS Flag,
+                tr.is_critical AS IsCritical, tr.instrument_id AS InstrumentId, tr.instrument_name AS InstrumentName,
+                tr.raw_value AS RawValue, tr.method AS Method, tr.remarks AS Remarks,
+                tr.entered_by AS EnteredBy, tr.entered_by_name AS EnteredByName, tr.entered_at AS EnteredAt,
+                tr.status AS Status, tr.created_at AS CreatedAt, tr.updated_at AS UpdatedAt
+            FROM test_results tr
             INNER JOIN lab_orders o ON o.id = tr.order_id
             WHERE tr.lab_id = @LabId 
               AND o.patient_id = @PatientId 

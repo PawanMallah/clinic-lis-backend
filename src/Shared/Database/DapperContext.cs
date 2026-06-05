@@ -16,7 +16,6 @@ public class DapperContext
     {
         var connection = new NpgsqlConnection(_connectionString);
         connection.Open();
-        // Ensure lis schema is in search path
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "SET search_path TO lis, public;";
         cmd.ExecuteNonQuery();

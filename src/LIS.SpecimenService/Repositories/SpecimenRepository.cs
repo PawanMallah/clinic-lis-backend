@@ -15,7 +15,13 @@ public class SpecimenRepository : BaseRepository, ISpecimenRepository
                 volume_ml, status, collected_by, collected_by_name, collected_at, notes, created_at, updated_at)
             VALUES (@Id, @LabId, @OrderId, @Barcode, @SpecimenType, @TubeType, @TubeColor, 
                 @VolumeMl, @Status::specimen_status, @CollectedBy, @CollectedByName, @CollectedAt, @Notes, @CreatedAt, @UpdatedAt)
-            RETURNING *";
+            RETURNING id AS Id, lab_id AS LabId, order_id AS OrderId, barcode AS Barcode,
+                specimen_type AS SpecimenType, tube_type AS TubeType, tube_color AS TubeColor,
+                volume_ml AS VolumeMl, status::text AS Status, collected_by AS CollectedBy,
+                collected_by_name AS CollectedByName, collected_at AS CollectedAt,
+                received_by AS ReceivedBy, received_by_name AS ReceivedByName, received_at AS ReceivedAt,
+                reject_reason AS RejectReason, rejected_by AS RejectedBy, rejected_at AS RejectedAt,
+                notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         using var connection = Connection;
         var result = await connection.QuerySingleAsync<Specimen>(sql, specimen);
@@ -24,7 +30,15 @@ public class SpecimenRepository : BaseRepository, ISpecimenRepository
 
     public async Task<Specimen?> GetByIdAsync(Guid id)
     {
-        const string sql = "SELECT * FROM specimens WHERE id = @Id";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, order_id AS OrderId, barcode AS Barcode,
+                specimen_type AS SpecimenType, tube_type AS TubeType, tube_color AS TubeColor,
+                volume_ml AS VolumeMl, status::text AS Status, collected_by AS CollectedBy,
+                collected_by_name AS CollectedByName, collected_at AS CollectedAt,
+                received_by AS ReceivedBy, received_by_name AS ReceivedByName, received_at AS ReceivedAt,
+                reject_reason AS RejectReason, rejected_by AS RejectedBy, rejected_at AS RejectedAt,
+                notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM specimens WHERE id = @Id";
 
         using var connection = Connection;
         return await connection.QuerySingleOrDefaultAsync<Specimen>(sql, new { Id = id });
@@ -32,7 +46,15 @@ public class SpecimenRepository : BaseRepository, ISpecimenRepository
 
     public async Task<Specimen?> GetByBarcodeAsync(string barcode)
     {
-        const string sql = "SELECT * FROM specimens WHERE barcode = @Barcode";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, order_id AS OrderId, barcode AS Barcode,
+                specimen_type AS SpecimenType, tube_type AS TubeType, tube_color AS TubeColor,
+                volume_ml AS VolumeMl, status::text AS Status, collected_by AS CollectedBy,
+                collected_by_name AS CollectedByName, collected_at AS CollectedAt,
+                received_by AS ReceivedBy, received_by_name AS ReceivedByName, received_at AS ReceivedAt,
+                reject_reason AS RejectReason, rejected_by AS RejectedBy, rejected_at AS RejectedAt,
+                notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM specimens WHERE barcode = @Barcode";
 
         using var connection = Connection;
         return await connection.QuerySingleOrDefaultAsync<Specimen>(sql, new { Barcode = barcode });
@@ -40,7 +62,15 @@ public class SpecimenRepository : BaseRepository, ISpecimenRepository
 
     public async Task<List<Specimen>> GetByOrderIdAsync(Guid orderId)
     {
-        const string sql = "SELECT * FROM specimens WHERE order_id = @OrderId ORDER BY created_at DESC";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, order_id AS OrderId, barcode AS Barcode,
+                specimen_type AS SpecimenType, tube_type AS TubeType, tube_color AS TubeColor,
+                volume_ml AS VolumeMl, status::text AS Status, collected_by AS CollectedBy,
+                collected_by_name AS CollectedByName, collected_at AS CollectedAt,
+                received_by AS ReceivedBy, received_by_name AS ReceivedByName, received_at AS ReceivedAt,
+                reject_reason AS RejectReason, rejected_by AS RejectedBy, rejected_at AS RejectedAt,
+                notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM specimens WHERE order_id = @OrderId ORDER BY created_at DESC";
 
         using var connection = Connection;
         var results = await connection.QueryAsync<Specimen>(sql, new { OrderId = orderId });
@@ -49,7 +79,14 @@ public class SpecimenRepository : BaseRepository, ISpecimenRepository
 
     public async Task<List<Specimen>> GetAllAsync(Guid labId, string? barcode, string? status, Guid? orderId, int page, int pageSize)
     {
-        var sql = "SELECT * FROM specimens WHERE lab_id = @LabId";
+        var sql = @"SELECT id AS Id, lab_id AS LabId, order_id AS OrderId, barcode AS Barcode,
+                specimen_type AS SpecimenType, tube_type AS TubeType, tube_color AS TubeColor,
+                volume_ml AS VolumeMl, status::text AS Status, collected_by AS CollectedBy,
+                collected_by_name AS CollectedByName, collected_at AS CollectedAt,
+                received_by AS ReceivedBy, received_by_name AS ReceivedByName, received_at AS ReceivedAt,
+                reject_reason AS RejectReason, rejected_by AS RejectedBy, rejected_at AS RejectedAt,
+                notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM specimens WHERE lab_id = @LabId";
         var parameters = new DynamicParameters();
         parameters.Add("LabId", labId);
 
@@ -153,7 +190,11 @@ public class SpecimenRepository : BaseRepository, ISpecimenRepository
 
     public async Task<List<SpecimenTracking>> GetTrackingAsync(Guid specimenId)
     {
-        const string sql = "SELECT * FROM specimen_tracking WHERE specimen_id = @SpecimenId ORDER BY performed_at DESC";
+        const string sql = @"
+            SELECT id AS Id, specimen_id AS SpecimenId, action AS Action,
+                performed_by AS PerformedBy, performed_by_name AS PerformedByName,
+                performed_at AS PerformedAt, notes AS Notes
+            FROM specimen_tracking WHERE specimen_id = @SpecimenId ORDER BY performed_at DESC";
 
         using var connection = Connection;
         var results = await connection.QueryAsync<SpecimenTracking>(sql, new { SpecimenId = specimenId });

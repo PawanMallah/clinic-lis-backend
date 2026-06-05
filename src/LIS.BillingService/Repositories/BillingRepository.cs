@@ -21,7 +21,13 @@ public class BillingRepository : BaseRepository, IBillingRepository
                 @PatientUhid, @ReferredBy, @PricingTier, @Subtotal, @DiscountPercent, @DiscountAmount, 
                 @TaxPercent, @TaxAmount, @TotalAmount, @AmountPaid, @AmountDue, @PaymentMode, @Status, @Notes, 
                 @CreatedAt, @UpdatedAt)
-            RETURNING *";
+            RETURNING id AS Id, lab_id AS LabId, invoice_number AS InvoiceNumber, order_id AS OrderId,
+                patient_id AS PatientId, patient_name AS PatientName, patient_uhid AS PatientUhid,
+                referred_by AS ReferredBy, pricing_tier AS PricingTier, subtotal AS Subtotal,
+                discount_percent AS DiscountPercent, discount_amount AS DiscountAmount,
+                tax_percent AS TaxPercent, tax_amount AS TaxAmount, total_amount AS TotalAmount,
+                amount_paid AS AmountPaid, amount_due AS AmountDue, payment_mode AS PaymentMode,
+                status AS Status, notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         using var connection = Connection;
         return await connection.QuerySingleAsync<LabInvoice>(sql, invoice);
@@ -39,7 +45,14 @@ public class BillingRepository : BaseRepository, IBillingRepository
 
     public async Task<List<LabInvoice>> GetInvoicesAsync(Guid labId, string? status, DateTime? fromDate, DateTime? toDate, string? search, int page, int pageSize)
     {
-        var sql = "SELECT * FROM lab_invoices WHERE lab_id = @LabId";
+        var sql = @"SELECT id AS Id, lab_id AS LabId, invoice_number AS InvoiceNumber, order_id AS OrderId,
+                patient_id AS PatientId, patient_name AS PatientName, patient_uhid AS PatientUhid,
+                referred_by AS ReferredBy, pricing_tier AS PricingTier, subtotal AS Subtotal,
+                discount_percent AS DiscountPercent, discount_amount AS DiscountAmount,
+                tax_percent AS TaxPercent, tax_amount AS TaxAmount, total_amount AS TotalAmount,
+                amount_paid AS AmountPaid, amount_due AS AmountDue, payment_mode AS PaymentMode,
+                status AS Status, notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM lab_invoices WHERE lab_id = @LabId";
         var parameters = new DynamicParameters();
         parameters.Add("LabId", labId);
 
@@ -112,7 +125,15 @@ public class BillingRepository : BaseRepository, IBillingRepository
 
     public async Task<LabInvoice?> GetInvoiceByIdAsync(Guid id)
     {
-        const string sql = "SELECT * FROM lab_invoices WHERE id = @Id";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, invoice_number AS InvoiceNumber, order_id AS OrderId,
+                patient_id AS PatientId, patient_name AS PatientName, patient_uhid AS PatientUhid,
+                referred_by AS ReferredBy, pricing_tier AS PricingTier, subtotal AS Subtotal,
+                discount_percent AS DiscountPercent, discount_amount AS DiscountAmount,
+                tax_percent AS TaxPercent, tax_amount AS TaxAmount, total_amount AS TotalAmount,
+                amount_paid AS AmountPaid, amount_due AS AmountDue, payment_mode AS PaymentMode,
+                status AS Status, notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM lab_invoices WHERE id = @Id";
 
         using var connection = Connection;
         return await connection.QuerySingleOrDefaultAsync<LabInvoice>(sql, new { Id = id });
@@ -120,7 +141,11 @@ public class BillingRepository : BaseRepository, IBillingRepository
 
     public async Task<List<LabInvoiceItem>> GetInvoiceItemsAsync(Guid invoiceId)
     {
-        const string sql = "SELECT * FROM lab_invoice_items WHERE invoice_id = @InvoiceId ORDER BY sort_order";
+        const string sql = @"
+            SELECT id AS Id, invoice_id AS InvoiceId, test_id AS TestId, test_code AS TestCode,
+                test_name AS TestName, quantity AS Quantity, rate AS Rate, amount AS Amount,
+                sort_order AS SortOrder
+            FROM lab_invoice_items WHERE invoice_id = @InvoiceId ORDER BY sort_order";
 
         using var connection = Connection;
         var results = await connection.QueryAsync<LabInvoiceItem>(sql, new { InvoiceId = invoiceId });
@@ -219,7 +244,12 @@ public class BillingRepository : BaseRepository, IBillingRepository
             VALUES (@Id, @LabId, @ReagentName, @Manufacturer, @CatalogNumber, @LotNumber, 
                 @ExpiryDate, @QuantityTotal, @QuantityRemaining, @Unit, @TestsPerUnit, @ReorderLevel, 
                 @CostPerUnit, @InstrumentId, @InstrumentName, @Status, @ReceivedDate, @Notes, @CreatedAt, @UpdatedAt)
-            RETURNING *";
+            RETURNING id AS Id, lab_id AS LabId, reagent_name AS ReagentName, manufacturer AS Manufacturer,
+                catalog_number AS CatalogNumber, lot_number AS LotNumber, expiry_date AS ExpiryDate,
+                quantity_total AS QuantityTotal, quantity_remaining AS QuantityRemaining, unit AS Unit,
+                tests_per_unit AS TestsPerUnit, reorder_level AS ReorderLevel, cost_per_unit AS CostPerUnit,
+                instrument_id AS InstrumentId, instrument_name AS InstrumentName, status AS Status,
+                received_date AS ReceivedDate, notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt";
 
         using var connection = Connection;
         return await connection.QuerySingleAsync<ReagentInventory>(sql, reagent);
@@ -227,7 +257,13 @@ public class BillingRepository : BaseRepository, IBillingRepository
 
     public async Task<List<ReagentInventory>> GetReagentsAsync(Guid labId, string? status, string? instrument, int page, int pageSize)
     {
-        var sql = "SELECT * FROM reagent_inventory WHERE lab_id = @LabId";
+        var sql = @"SELECT id AS Id, lab_id AS LabId, reagent_name AS ReagentName, manufacturer AS Manufacturer,
+                catalog_number AS CatalogNumber, lot_number AS LotNumber, expiry_date AS ExpiryDate,
+                quantity_total AS QuantityTotal, quantity_remaining AS QuantityRemaining, unit AS Unit,
+                tests_per_unit AS TestsPerUnit, reorder_level AS ReorderLevel, cost_per_unit AS CostPerUnit,
+                instrument_id AS InstrumentId, instrument_name AS InstrumentName, status AS Status,
+                received_date AS ReceivedDate, notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM reagent_inventory WHERE lab_id = @LabId";
         var parameters = new DynamicParameters();
         parameters.Add("LabId", labId);
 
@@ -276,7 +312,14 @@ public class BillingRepository : BaseRepository, IBillingRepository
 
     public async Task<ReagentInventory?> GetReagentByIdAsync(Guid id)
     {
-        const string sql = "SELECT * FROM reagent_inventory WHERE id = @Id";
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, reagent_name AS ReagentName, manufacturer AS Manufacturer,
+                catalog_number AS CatalogNumber, lot_number AS LotNumber, expiry_date AS ExpiryDate,
+                quantity_total AS QuantityTotal, quantity_remaining AS QuantityRemaining, unit AS Unit,
+                tests_per_unit AS TestsPerUnit, reorder_level AS ReorderLevel, cost_per_unit AS CostPerUnit,
+                instrument_id AS InstrumentId, instrument_name AS InstrumentName, status AS Status,
+                received_date AS ReceivedDate, notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM reagent_inventory WHERE id = @Id";
 
         using var connection = Connection;
         return await connection.QuerySingleOrDefaultAsync<ReagentInventory>(sql, new { Id = id });
@@ -315,7 +358,13 @@ public class BillingRepository : BaseRepository, IBillingRepository
     public async Task<List<ReagentInventory>> GetLowStockAlertsAsync(Guid labId)
     {
         const string sql = @"
-            SELECT * FROM reagent_inventory 
+            SELECT id AS Id, lab_id AS LabId, reagent_name AS ReagentName, manufacturer AS Manufacturer,
+                catalog_number AS CatalogNumber, lot_number AS LotNumber, expiry_date AS ExpiryDate,
+                quantity_total AS QuantityTotal, quantity_remaining AS QuantityRemaining, unit AS Unit,
+                tests_per_unit AS TestsPerUnit, reorder_level AS ReorderLevel, cost_per_unit AS CostPerUnit,
+                instrument_id AS InstrumentId, instrument_name AS InstrumentName, status AS Status,
+                received_date AS ReceivedDate, notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM reagent_inventory 
             WHERE lab_id = @LabId AND quantity_remaining <= reorder_level AND status != 'out_of_stock'
             ORDER BY quantity_remaining ASC";
 
@@ -327,7 +376,13 @@ public class BillingRepository : BaseRepository, IBillingRepository
     public async Task<List<ReagentInventory>> GetExpiringAlertsAsync(Guid labId, int daysAhead = 30)
     {
         const string sql = @"
-            SELECT * FROM reagent_inventory 
+            SELECT id AS Id, lab_id AS LabId, reagent_name AS ReagentName, manufacturer AS Manufacturer,
+                catalog_number AS CatalogNumber, lot_number AS LotNumber, expiry_date AS ExpiryDate,
+                quantity_total AS QuantityTotal, quantity_remaining AS QuantityRemaining, unit AS Unit,
+                tests_per_unit AS TestsPerUnit, reorder_level AS ReorderLevel, cost_per_unit AS CostPerUnit,
+                instrument_id AS InstrumentId, instrument_name AS InstrumentName, status AS Status,
+                received_date AS ReceivedDate, notes AS Notes, created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM reagent_inventory 
             WHERE lab_id = @LabId AND expiry_date IS NOT NULL 
                 AND expiry_date <= (CURRENT_DATE + @DaysAhead * INTERVAL '1 day')
                 AND status NOT IN ('expired', 'out_of_stock')

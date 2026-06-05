@@ -20,7 +20,8 @@ public class QcRepository : IQcRepository
         const string sql = @"
             INSERT INTO qc_materials (id, lab_id, material_name, manufacturer, lot_number, expiry_date, level, is_active, created_at)
             VALUES (@Id, @LabId, @MaterialName, @Manufacturer, @LotNumber, @ExpiryDate, @Level, @IsActive, NOW())
-            RETURNING *";
+            RETURNING id, lab_id AS LabId, material_name AS MaterialName, manufacturer, lot_number AS LotNumber,
+                expiry_date AS ExpiryDate, level, is_active AS IsActive, created_at AS CreatedAt";
 
         using var connection = _context.CreateConnection();
         return await connection.QuerySingleAsync<QcMaterial>(sql, material);
@@ -66,7 +67,9 @@ public class QcRepository : IQcRepository
         const string sql = @"
             INSERT INTO qc_target_values (id, material_id, test_id, test_code, test_name, expected_mean, expected_sd, unit, created_at)
             VALUES (@Id, @MaterialId, @TestId, @TestCode, @TestName, @ExpectedMean, @ExpectedSd, @Unit, NOW())
-            RETURNING *";
+            RETURNING id, material_id AS MaterialId, test_id AS TestId, test_code AS TestCode,
+                test_name AS TestName, expected_mean AS ExpectedMean, expected_sd AS ExpectedSd,
+                unit, created_at AS CreatedAt";
 
         using var connection = _context.CreateConnection();
         return await connection.QuerySingleAsync<QcTargetValue>(sql, targetValue);
@@ -98,7 +101,14 @@ public class QcRepository : IQcRepository
             VALUES (@Id, @LabId, @MaterialId, @TargetValueId, @InstrumentId, @InstrumentName,
                 @TestId, @TestCode, @TestName, @Level, @LotNumber, @MeasuredValue, @ExpectedMean, @ExpectedSd,
                 @SdIndex, @Status::qc_status, @WestgardViolation, @RunDate, @RecordedBy, @RecordedByName, NOW(), @Comments, NOW())
-            RETURNING *";
+            RETURNING id, lab_id AS LabId, material_id AS MaterialId, target_value_id AS TargetValueId,
+                instrument_id AS InstrumentId, instrument_name AS InstrumentName,
+                test_id AS TestId, test_code AS TestCode, test_name AS TestName, level,
+                lot_number AS LotNumber, measured_value AS MeasuredValue,
+                expected_mean AS ExpectedMean, expected_sd AS ExpectedSd,
+                sd_index AS SdIndex, status::text AS Status, westgard_violation AS WestgardViolation,
+                run_date AS RunDate, recorded_by AS RecordedBy, recorded_by_name AS RecordedByName,
+                recorded_at AS RecordedAt, comments, created_at AS CreatedAt";
 
         using var connection = _context.CreateConnection();
         return await connection.QuerySingleAsync<QcRecord>(sql, record);
@@ -119,7 +129,7 @@ public class QcRepository : IQcRepository
                    test_id AS TestId, test_code AS TestCode, test_name AS TestName, level,
                    lot_number AS LotNumber, measured_value AS MeasuredValue,
                    expected_mean AS ExpectedMean, expected_sd AS ExpectedSd,
-                   sd_index AS SdIndex, status, westgard_violation AS WestgardViolation,
+                   sd_index AS SdIndex, status::text AS Status, westgard_violation AS WestgardViolation,
                    run_date AS RunDate, recorded_by AS RecordedBy, recorded_by_name AS RecordedByName,
                    recorded_at AS RecordedAt, comments, created_at AS CreatedAt
             FROM qc_records
@@ -165,7 +175,7 @@ public class QcRepository : IQcRepository
                    test_id AS TestId, test_code AS TestCode, test_name AS TestName, level,
                    lot_number AS LotNumber, measured_value AS MeasuredValue,
                    expected_mean AS ExpectedMean, expected_sd AS ExpectedSd,
-                   sd_index AS SdIndex, status, westgard_violation AS WestgardViolation,
+                   sd_index AS SdIndex, status::text AS Status, westgard_violation AS WestgardViolation,
                    run_date AS RunDate, recorded_by AS RecordedBy, recorded_by_name AS RecordedByName,
                    recorded_at AS RecordedAt, comments, created_at AS CreatedAt
             FROM qc_records
@@ -188,7 +198,7 @@ public class QcRepository : IQcRepository
                 r.test_name AS TestName,
                 r.instrument_name AS InstrumentName,
                 r.run_date AS LastQcDate,
-                r.status AS LastQcStatus,
+                r.status::text AS LastQcStatus,
                 CASE WHEN b.id IS NOT NULL THEN true ELSE false END AS IsBlocked,
                 b.reason AS BlockReason
             FROM qc_records r
@@ -210,7 +220,9 @@ public class QcRepository : IQcRepository
         const string sql = @"
             INSERT INTO qc_blocks (id, lab_id, test_id, instrument_id, reason, blocked_by, blocked_at, is_active)
             VALUES (@Id, @LabId, @TestId, @InstrumentId, @Reason, @BlockedBy, NOW(), true)
-            RETURNING *";
+            RETURNING id, lab_id AS LabId, test_id AS TestId, instrument_id AS InstrumentId,
+                reason, blocked_by AS BlockedBy, blocked_at AS BlockedAt,
+                resolved_by AS ResolvedBy, resolved_at AS ResolvedAt, is_active AS IsActive";
 
         using var connection = _context.CreateConnection();
         return await connection.QuerySingleAsync<QcBlock>(sql, block);
