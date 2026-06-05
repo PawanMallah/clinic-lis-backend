@@ -17,6 +17,17 @@ public interface IResultRepository
     Task CreateCriticalAlertAsync(CriticalAlert alert);
     Task<List<TestResult>> GetPatientPreviousResultsAsync(Guid labId, Guid? patientId, string testCode, int limit);
     Task<TestResult?> GetByOrderTestIdAsync(Guid orderTestId);
+
+    // Auto-verification
+    Task<List<AutoVerificationRule>> GetAutoVerificationRulesAsync(Guid labId, string? testCode = null);
+    Task<AutoVerificationRule> CreateAutoVerificationRuleAsync(AutoVerificationRule rule);
+    Task UpdateAutoVerificationRuleAsync(AutoVerificationRule rule);
+    Task CreateAutoVerificationLogAsync(AutoVerificationLog log);
+    Task<List<ReflexRuleRow>> GetReflexRulesAsync(Guid labId, string testCode);
+
+    // Digital signatures
+    Task<DigitalSignature> CreateDigitalSignatureAsync(DigitalSignature signature);
+    Task<List<DigitalSignature>> GetDigitalSignaturesAsync(Guid labId);
 }
 
 public class WorklistRow
@@ -29,4 +40,18 @@ public class WorklistRow
     public string Priority { get; set; } = "routine";
     public string Status { get; set; } = "pending";
     public DateTime? OrderedAt { get; set; }
+}
+
+public class ReflexRuleRow
+{
+    public Guid Id { get; set; }
+    public string TriggerTestCode { get; set; } = string.Empty;
+    public string? TriggerParameter { get; set; }
+    public string ConditionOperator { get; set; } = string.Empty;
+    public decimal ConditionValue { get; set; }
+    public Guid ReflexTestId { get; set; }
+    public string ReflexTestCode { get; set; } = string.Empty;
+    public string ReflexTestName { get; set; } = string.Empty;
+    public bool AutoOrder { get; set; }
+    public bool IsActive { get; set; } = true;
 }

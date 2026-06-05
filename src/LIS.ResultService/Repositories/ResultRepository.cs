@@ -260,4 +260,137 @@ public class ResultRepository : BaseRepository, IResultRepository
         });
         return results.ToList();
     }
+
+    // --- Auto-verification repository methods ---
+
+    public async Task<List<AutoVerificationRule>> GetAutoVerificationRulesAsync(Guid labId, string? testCode = null)
+    {
+        var sql = @"
+            SELECT id AS Id, lab_id AS LabId, test_id AS TestId, test_code AS TestCode,
+                rule_name AS RuleName, is_enabled AS IsEnabled,
+                require_qc_pass AS RequireQcPass, delta_check_percent AS DeltaCheckPercent,
+                delta_check_hours AS DeltaCheckHours, exclude_critical AS ExcludeCritical,
+                exclude_first_result AS ExcludeFirstResult, exclude_neonatal AS ExcludeNeonatal,
+                exclude_critical_care AS ExcludeCriticalCare,
+                require_in_reportable_range AS RequireInReportableRange,
+                require_no_instrument_flags AS RequireNoInstrumentFlags,
+                created_at AS CreatedAt, updated_at AS UpdatedAt
+            FROM auto_verification_rules
+            WHERE lab_id = @LabId AND is_enabled = true";
+
+        var parameters = new DynamicParameters();
+        parameters.Add("LabId", labId);
+
+        if (!string.IsNullOrEmpty(testCode))
+        {
+            sql += " AND (test_code = @TestCode OR test_code IS NULL)";
+            parameters.Add("TestCode", testCode);
+        }
+
+        sql += " ORDER BY test_code NULLS LAST";
+
+        using var connection = Connection;
+        var results = await connection.QueryAsync<AutoVerificationRule>(sql, parameters);
+        return results.ToList();
+    }
+
+    public async Task<AutoVerificationRule> CreateAutoVerificationRuleAsync(AutoVerificationRule rule)
+    {
+        const string sql = @"
+            INSERT INTO auto_verification_rules (id, lab_id, test_id, test_code, rule_name, is_enabled,
+                require_qc_pass, delta_check_percent, delta_check_hours, exclude_critical,
+                exclude_first_result, exclude_neonatal, exclude_critical_care,
+                require_in_reportable_range, require_no_instrument_flags, created_at, updated_at)
+            VALUES (@Id, @LabId, @TestId, @TestCode, @RuleName, @IsEnabled,
+                @RequireQcPass, @DeltaCheckPercent, @DeltaCheckHours, @ExcludeCritical,
+                @ExcludeFirstResult, @ExcludeNeonatal, @ExcludeCriticalCare,
+                @RequireInReportableRange, @RequireNoInstrumentFlags, @CreatedAt, @UpdatedAt)
+            RETURNING id AS Id, lab_id AS LabId, test_id AS TestId, test_code AS TestCode,
+                rule_name AS RuleName, is_enabled AS IsEnabled,
+                require_qc_pass AS RequireQcPass, delta_check_percent AS DeltaCheckPercent,
+                delta_check_hours AS DeltaCheckHours, exclude_critical AS ExcludeCritical,
+                exclude_first_result AS ExcludeFirstResult, exclude_neonatal AS ExcludeNeonatal,
+                exclude_critical_care AS ExcludeCriticalCare,
+                require_in_reportable_range AS RequireInReportableRange,
+                require_no_instrument_flags AS RequireNoInstrumentFlags,
+                created_at AS CreatedAt, updated_at AS UpdatedAt";
+
+        using var connection = Connection;
+        return await connection.QuerySingleAsync<AutoVerificationRule>(sql, rule);
+    }
+
+    public async Task UpdateAutoVerificationRuleAsync(AutoVerificationRule rule)
+    {
+        const string sql = @"
+            UPDATE auto_verification_rules
+            SET rule_name = @RuleName, is_enabled = @IsEnabled,
+                require_qc_pass = @RequireQcPass, delta_check_percent = @DeltaCheckPercent,
+                delta_check_hours = @DeltaCheckHours, exclude_critical = @ExcludeCritical,
+                exclude_first_result = @ExcludeFirstResult, exclude_neonatal = @ExcludeNeonatal,
+                exclude_critical_care = @ExcludeCriticalCare,
+                require_in_reportable_range = @RequireInReportableRange,
+                require_no_instrument_flags = @RequireNoInstrumentFlags,
+                updated_at = NOW()
+            WHERE id = @Id AND lab_id = @LabId";
+
+        using var connection = Connection;
+        await connection.ExecuteAsync(sql, rule);
+    }
+
+    public async Task CreateAutoVerificationLogAsync(AutoVerificationLog log)
+    {
+        const string sql = @"
+            INSERT INTO auto_verification_log (id, result_id, order_id, test_code, passed, failure_reasons, checked_at)
+            VALUES (@Id, @ResultId, @OrderId, @TestCode, @Passed, @FailureReasons::jsonb, @CheckedAt)";
+
+        using var connection = Connection;
+        await connection.ExecuteAsync(sql, log);
+    }
+
+    public async Task<List<ReflexRuleRow>> GetReflexRulesAsync(Guid labId, string testCode)
+    {
+        const string sql = @"
+            SELECT id AS Id, trigger_test_code AS TriggerTestCode, trigger_parameter AS TriggerParameter,
+                condition_operator AS ConditionOperator, condition_value AS ConditionValue,
+                reflex_test_id AS ReflexTestId, reflex_test_code AS ReflexTestCode,
+                reflex_test_name AS ReflexTestName, auto_order AS AutoOrder, is_active AS IsActive
+            FROM reflex_rules
+            WHERE lab_id = @LabId AND trigger_test_code = @TestCode AND is_active = true";
+
+        using var connection = Connection;
+        var results = await connection.QueryAsync<ReflexRuleRow>(sql, new { LabId = labId, TestCode = testCode });
+        return results.ToList();
+    }
+
+    // --- Digital signature repository methods ---
+
+    public async Task<DigitalSignature> CreateDigitalSignatureAsync(DigitalSignature signature)
+    {
+        const string sql = @"
+            INSERT INTO digital_signatures (id, lab_id, user_id, user_name, user_role,
+                qualification, license_number, signature_image, is_active, created_at)
+            VALUES (@Id, @LabId, @UserId, @UserName, @UserRole,
+                @Qualification, @LicenseNumber, @SignatureImage, @IsActive, @CreatedAt)
+            RETURNING id AS Id, lab_id AS LabId, user_id AS UserId, user_name AS UserName,
+                user_role AS UserRole, qualification AS Qualification, license_number AS LicenseNumber,
+                signature_image AS SignatureImage, is_active AS IsActive, created_at AS CreatedAt";
+
+        using var connection = Connection;
+        return await connection.QuerySingleAsync<DigitalSignature>(sql, signature);
+    }
+
+    public async Task<List<DigitalSignature>> GetDigitalSignaturesAsync(Guid labId)
+    {
+        const string sql = @"
+            SELECT id AS Id, lab_id AS LabId, user_id AS UserId, user_name AS UserName,
+                user_role AS UserRole, qualification AS Qualification, license_number AS LicenseNumber,
+                signature_image AS SignatureImage, is_active AS IsActive, created_at AS CreatedAt
+            FROM digital_signatures
+            WHERE lab_id = @LabId AND is_active = true
+            ORDER BY user_name";
+
+        using var connection = Connection;
+        var results = await connection.QueryAsync<DigitalSignature>(sql, new { LabId = labId });
+        return results.ToList();
+    }
 }

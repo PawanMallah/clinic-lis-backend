@@ -1,4 +1,5 @@
 using LIS.ResultService.Repositories;
+using LIS.ResultService.Services;
 using Shared.Cache;
 using Shared.Extensions;
 using Shared.Middleware;
@@ -12,6 +13,10 @@ builder.Services.AddRedisCache(builder.Configuration);
 
 // Register repositories
 builder.Services.AddScoped<IResultRepository, ResultRepository>();
+
+// Register services
+builder.Services.AddScoped<AutoVerificationService>();
+builder.Services.AddScoped<ReflexTestingService>();
 
 // Add controllers
 builder.Services.AddControllers();

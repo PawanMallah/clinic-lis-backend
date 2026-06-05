@@ -1,7 +1,9 @@
+using System.Text.Json;
 using LIS.ResultService.DTOs;
 using LIS.ResultService.Helpers;
 using LIS.ResultService.Models;
 using LIS.ResultService.Repositories;
+using LIS.ResultService.Services;
 using Microsoft.AspNetCore.Mvc;
 using Shared.DTOs;
 
@@ -12,10 +14,17 @@ namespace LIS.ResultService.Controllers;
 public class ResultsController : ControllerBase
 {
     private readonly IResultRepository _resultRepository;
+    private readonly AutoVerificationService _autoVerificationService;
+    private readonly ReflexTestingService _reflexTestingService;
 
-    public ResultsController(IResultRepository resultRepository)
+    public ResultsController(
+        IResultRepository resultRepository,
+        AutoVerificationService autoVerificationService,
+        ReflexTestingService reflexTestingService)
     {
         _resultRepository = resultRepository;
+        _autoVerificationService = autoVerificationService;
+        _reflexTestingService = reflexTestingService;
     }
 
     private Guid GetLabId()
@@ -36,7 +45,7 @@ public class ResultsController : ControllerBase
     }
 
     /// <summary>
-    /// Enter a single test result with auto-flagging and critical alert generation.
+    /// Enter a single test result with auto-flagging, auto-verification, and reflex test evaluation.
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> EnterResult([FromBody] EnterResultRequest request)
@@ -114,8 +123,117 @@ public class ResultsController : ControllerBase
             await _resultRepository.CreateCriticalAlertAsync(alert);
         }
 
-        var response = MapToResponse(created);
-        return Created($"/results/{created.Id}", ApiResponse<ResultResponse>.Ok(response, "Result entered successfully"));
+        // --- Auto-verification engine ---
+        AutoVerificationResultInfo? autoVerifyInfo = null;
+        var testCode = created.TestCode;
+        var rules = await _resultRepository.GetAutoVerificationRulesAsync(labId, testCode);
+
+        if (rules.Count > 0)
+        {
+            // Use the most specific rule (test-code-specific over generic)
+            var rule = rules.FirstOrDefault(r => r.TestCode == testCode) ?? rules.First();
+
+            // Determine if this is the first result for the patient/test
+            var previousResults = await _resultRepository.GetPatientPreviousResultsAsync(labId, null, testCode, 2);
+            var previousOther = previousResults.Where(r => r.Id != created.Id).OrderByDescending(r => r.CreatedAt).FirstOrDefault();
+            var isFirstResult = previousOther == null;
+
+            var context = new AutoVerificationContext
+            {
+                TestCode = testCode,
+                CurrentNumericValue = numericValue,
+                PreviousValue = previousOther?.ResultNumeric,
+                QcPassed = true, // Default true — would be checked against QC service
+                IsCriticalValue = isCritical,
+                HasInstrumentFlags = false, // Would come from instrument interface
+                IsFirstResult = isFirstResult,
+                IsNeonatal = false, // Would come from patient demographics
+                IsCriticalCarePatient = false, // Would come from patient location
+                ReportableRangeLow = refLow,
+                ReportableRangeHigh = refHigh,
+                // Rule configuration
+                RequireQcPass = rule.RequireQcPass,
+                DeltaCheckPercent = rule.DeltaCheckPercent,
+                ExcludeCritical = rule.ExcludeCritical,
+                RequireInReportableRange = rule.RequireInReportableRange,
+                RequireNoInstrumentFlags = rule.RequireNoInstrumentFlags,
+                ExcludeFirstResult = rule.ExcludeFirstResult,
+                ExcludeNeonatal = rule.ExcludeNeonatal,
+                ExcludeCriticalCare = rule.ExcludeCriticalCare
+            };
+
+            var (passed, failures) = _autoVerificationService.Evaluate(context);
+
+            // Log the auto-verification result
+            var avLog = new AutoVerificationLog
+            {
+                Id = Guid.NewGuid(),
+                ResultId = created.Id,
+                OrderId = created.OrderId,
+                TestCode = testCode,
+                Passed = passed,
+                FailureReasons = JsonSerializer.Serialize(failures),
+                CheckedAt = DateTime.UtcNow
+            };
+            await _resultRepository.CreateAutoVerificationLogAsync(avLog);
+
+            if (passed)
+            {
+                // Auto-set status to tech_verified
+                await _resultRepository.UpdateResultStatusAsync(created.Id, "tech_verified");
+                created.Status = "tech_verified";
+            }
+
+            autoVerifyInfo = new AutoVerificationResultInfo
+            {
+                Passed = passed,
+                FailureReasons = failures,
+                AutoVerifiedAt = passed ? DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ") : null
+            };
+        }
+
+        // --- Reflex testing engine ---
+        var reflexTriggered = new List<ReflexTriggerResponse>();
+        if (!string.IsNullOrEmpty(testCode) && numericValue.HasValue)
+        {
+            var reflexRuleRows = await _resultRepository.GetReflexRulesAsync(labId, testCode);
+            if (reflexRuleRows.Count > 0)
+            {
+                var reflexRules = reflexRuleRows.Select(r => new ReflexRule
+                {
+                    Id = r.Id,
+                    TriggerTestCode = r.TriggerTestCode,
+                    TriggerParameter = r.TriggerParameter,
+                    ConditionOperator = r.ConditionOperator,
+                    ConditionValue = r.ConditionValue,
+                    ReflexTestId = r.ReflexTestId,
+                    ReflexTestCode = r.ReflexTestCode,
+                    ReflexTestName = r.ReflexTestName,
+                    AutoOrder = r.AutoOrder,
+                    IsActive = r.IsActive
+                }).ToList();
+
+                var triggers = _reflexTestingService.EvaluateReflexRules(reflexRules, testCode, numericValue);
+                reflexTriggered = triggers.Select(t => new ReflexTriggerResponse
+                {
+                    RuleId = t.RuleId.ToString(),
+                    ReflexTestId = t.ReflexTestId.ToString(),
+                    ReflexTestCode = t.ReflexTestCode,
+                    ReflexTestName = t.ReflexTestName,
+                    AutoOrder = t.AutoOrder,
+                    TriggerReason = t.TriggerReason
+                }).ToList();
+            }
+        }
+
+        var response = new EnterResultResponse
+        {
+            Result = MapToResponse(created),
+            AutoVerification = autoVerifyInfo,
+            ReflexTriggered = reflexTriggered
+        };
+
+        return Created($"/results/{created.Id}", ApiResponse<EnterResultResponse>.Ok(response, "Result entered successfully"));
     }
 
     /// <summary>
@@ -428,5 +546,198 @@ public class ResultsController : ControllerBase
                 CorrectedValue = v.CorrectedValue
             }).ToList() ?? new()
         };
+    }
+
+    // =============================================
+    // Auto-verification rules endpoints
+    // =============================================
+
+    /// <summary>
+    /// List auto-verification rules for this lab.
+    /// </summary>
+    [HttpGet("auto-verify-rules")]
+    public async Task<IActionResult> GetAutoVerifyRules([FromQuery] string? testCode)
+    {
+        var labId = GetLabId();
+        var rules = await _resultRepository.GetAutoVerificationRulesAsync(labId, testCode);
+
+        var responses = rules.Select(r => new AutoVerificationRuleResponse
+        {
+            Id = r.Id.ToString(),
+            TestId = r.TestId?.ToString(),
+            TestCode = r.TestCode,
+            RuleName = r.RuleName,
+            IsEnabled = r.IsEnabled,
+            RequireQcPass = r.RequireQcPass,
+            DeltaCheckPercent = r.DeltaCheckPercent,
+            DeltaCheckHours = r.DeltaCheckHours,
+            ExcludeCritical = r.ExcludeCritical,
+            ExcludeFirstResult = r.ExcludeFirstResult,
+            ExcludeNeonatal = r.ExcludeNeonatal,
+            ExcludeCriticalCare = r.ExcludeCriticalCare,
+            RequireInReportableRange = r.RequireInReportableRange,
+            RequireNoInstrumentFlags = r.RequireNoInstrumentFlags,
+            CreatedAt = r.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ssZ")
+        }).ToList();
+
+        return Ok(ApiResponse<List<AutoVerificationRuleResponse>>.Ok(responses));
+    }
+
+    /// <summary>
+    /// Create or update an auto-verification rule.
+    /// </summary>
+    [HttpPost("auto-verify-rules")]
+    public async Task<IActionResult> CreateAutoVerifyRule([FromBody] AutoVerificationRuleDto request)
+    {
+        var labId = GetLabId();
+
+        if (string.IsNullOrWhiteSpace(request.RuleName))
+            return BadRequest(ApiResponse<object>.Fail("RuleName is required"));
+
+        // If Id provided, update existing rule
+        if (!string.IsNullOrEmpty(request.Id) && Guid.TryParse(request.Id, out var existingId))
+        {
+            var rule = new AutoVerificationRule
+            {
+                Id = existingId,
+                LabId = labId,
+                TestId = string.IsNullOrEmpty(request.TestId) ? null : Guid.Parse(request.TestId),
+                TestCode = request.TestCode,
+                RuleName = request.RuleName,
+                IsEnabled = request.IsEnabled,
+                RequireQcPass = request.RequireQcPass,
+                DeltaCheckPercent = request.DeltaCheckPercent,
+                DeltaCheckHours = request.DeltaCheckHours,
+                ExcludeCritical = request.ExcludeCritical,
+                ExcludeFirstResult = request.ExcludeFirstResult,
+                ExcludeNeonatal = request.ExcludeNeonatal,
+                ExcludeCriticalCare = request.ExcludeCriticalCare,
+                RequireInReportableRange = request.RequireInReportableRange,
+                RequireNoInstrumentFlags = request.RequireNoInstrumentFlags
+            };
+
+            await _resultRepository.UpdateAutoVerificationRuleAsync(rule);
+            return Ok(ApiResponse<object>.Ok(new { id = existingId.ToString() }, "Rule updated"));
+        }
+
+        // Create new rule
+        var newRule = new AutoVerificationRule
+        {
+            Id = Guid.NewGuid(),
+            LabId = labId,
+            TestId = string.IsNullOrEmpty(request.TestId) ? null : Guid.Parse(request.TestId),
+            TestCode = request.TestCode,
+            RuleName = request.RuleName,
+            IsEnabled = request.IsEnabled,
+            RequireQcPass = request.RequireQcPass,
+            DeltaCheckPercent = request.DeltaCheckPercent,
+            DeltaCheckHours = request.DeltaCheckHours,
+            ExcludeCritical = request.ExcludeCritical,
+            ExcludeFirstResult = request.ExcludeFirstResult,
+            ExcludeNeonatal = request.ExcludeNeonatal,
+            ExcludeCriticalCare = request.ExcludeCriticalCare,
+            RequireInReportableRange = request.RequireInReportableRange,
+            RequireNoInstrumentFlags = request.RequireNoInstrumentFlags,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        var created = await _resultRepository.CreateAutoVerificationRuleAsync(newRule);
+
+        var response = new AutoVerificationRuleResponse
+        {
+            Id = created.Id.ToString(),
+            TestId = created.TestId?.ToString(),
+            TestCode = created.TestCode,
+            RuleName = created.RuleName,
+            IsEnabled = created.IsEnabled,
+            RequireQcPass = created.RequireQcPass,
+            DeltaCheckPercent = created.DeltaCheckPercent,
+            DeltaCheckHours = created.DeltaCheckHours,
+            ExcludeCritical = created.ExcludeCritical,
+            ExcludeFirstResult = created.ExcludeFirstResult,
+            ExcludeNeonatal = created.ExcludeNeonatal,
+            ExcludeCriticalCare = created.ExcludeCriticalCare,
+            RequireInReportableRange = created.RequireInReportableRange,
+            RequireNoInstrumentFlags = created.RequireNoInstrumentFlags,
+            CreatedAt = created.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ssZ")
+        };
+
+        return Created($"/results/auto-verify-rules/{created.Id}", ApiResponse<AutoVerificationRuleResponse>.Ok(response, "Rule created"));
+    }
+
+    // =============================================
+    // Digital signature endpoints
+    // =============================================
+
+    /// <summary>
+    /// Register or upload a digital signature.
+    /// </summary>
+    [HttpPost("signatures")]
+    public async Task<IActionResult> CreateDigitalSignature([FromBody] CreateDigitalSignatureRequest request)
+    {
+        var labId = GetLabId();
+        var (userId, _) = GetUserInfo();
+
+        if (string.IsNullOrWhiteSpace(request.UserName))
+            return BadRequest(ApiResponse<object>.Fail("UserName is required"));
+        if (string.IsNullOrWhiteSpace(request.UserRole))
+            return BadRequest(ApiResponse<object>.Fail("UserRole is required"));
+
+        var signature = new DigitalSignature
+        {
+            Id = Guid.NewGuid(),
+            LabId = labId,
+            UserId = userId ?? Guid.Empty,
+            UserName = request.UserName,
+            UserRole = request.UserRole,
+            Qualification = request.Qualification,
+            LicenseNumber = request.LicenseNumber,
+            SignatureImage = request.SignatureImage,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var created = await _resultRepository.CreateDigitalSignatureAsync(signature);
+
+        var response = new DigitalSignatureResponse
+        {
+            Id = created.Id.ToString(),
+            UserId = created.UserId.ToString(),
+            UserName = created.UserName,
+            UserRole = created.UserRole,
+            Qualification = created.Qualification,
+            LicenseNumber = created.LicenseNumber,
+            HasSignatureImage = !string.IsNullOrEmpty(created.SignatureImage),
+            IsActive = created.IsActive,
+            CreatedAt = created.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ssZ")
+        };
+
+        return Created($"/results/signatures/{created.Id}", ApiResponse<DigitalSignatureResponse>.Ok(response, "Signature registered"));
+    }
+
+    /// <summary>
+    /// List available digital signatures for the lab.
+    /// </summary>
+    [HttpGet("signatures")]
+    public async Task<IActionResult> GetDigitalSignatures()
+    {
+        var labId = GetLabId();
+        var signatures = await _resultRepository.GetDigitalSignaturesAsync(labId);
+
+        var responses = signatures.Select(s => new DigitalSignatureResponse
+        {
+            Id = s.Id.ToString(),
+            UserId = s.UserId.ToString(),
+            UserName = s.UserName,
+            UserRole = s.UserRole,
+            Qualification = s.Qualification,
+            LicenseNumber = s.LicenseNumber,
+            HasSignatureImage = !string.IsNullOrEmpty(s.SignatureImage),
+            IsActive = s.IsActive,
+            CreatedAt = s.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ssZ")
+        }).ToList();
+
+        return Ok(ApiResponse<List<DigitalSignatureResponse>>.Ok(responses));
     }
 }

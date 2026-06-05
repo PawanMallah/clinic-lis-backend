@@ -90,3 +90,90 @@ public class DeltaCheckResponse
     public string? PreviousDate { get; set; }
     public decimal? PercentChange { get; set; }
 }
+
+// --- Auto-verification DTOs ---
+
+public class AutoVerificationRuleDto
+{
+    public string? Id { get; set; }
+    public string? TestId { get; set; }
+    public string? TestCode { get; set; }
+    public string RuleName { get; set; } = string.Empty;
+    public bool IsEnabled { get; set; } = true;
+    public bool RequireQcPass { get; set; } = true;
+    public decimal DeltaCheckPercent { get; set; } = 20;
+    public int DeltaCheckHours { get; set; } = 48;
+    public bool ExcludeCritical { get; set; } = true;
+    public bool ExcludeFirstResult { get; set; } = true;
+    public bool ExcludeNeonatal { get; set; }
+    public bool ExcludeCriticalCare { get; set; }
+    public bool RequireInReportableRange { get; set; } = true;
+    public bool RequireNoInstrumentFlags { get; set; } = true;
+}
+
+public class AutoVerificationRuleResponse
+{
+    public string Id { get; set; } = string.Empty;
+    public string? TestId { get; set; }
+    public string? TestCode { get; set; }
+    public string RuleName { get; set; } = string.Empty;
+    public bool IsEnabled { get; set; }
+    public bool RequireQcPass { get; set; }
+    public decimal DeltaCheckPercent { get; set; }
+    public int DeltaCheckHours { get; set; }
+    public bool ExcludeCritical { get; set; }
+    public bool ExcludeFirstResult { get; set; }
+    public bool ExcludeNeonatal { get; set; }
+    public bool ExcludeCriticalCare { get; set; }
+    public bool RequireInReportableRange { get; set; }
+    public bool RequireNoInstrumentFlags { get; set; }
+    public string? CreatedAt { get; set; }
+}
+
+public class AutoVerificationResultInfo
+{
+    public bool Passed { get; set; }
+    public List<string> FailureReasons { get; set; } = new();
+    public string? AutoVerifiedAt { get; set; }
+}
+
+public class ReflexTriggerResponse
+{
+    public string RuleId { get; set; } = string.Empty;
+    public string ReflexTestId { get; set; } = string.Empty;
+    public string ReflexTestCode { get; set; } = string.Empty;
+    public string ReflexTestName { get; set; } = string.Empty;
+    public bool AutoOrder { get; set; }
+    public string TriggerReason { get; set; } = string.Empty;
+}
+
+public class EnterResultResponse
+{
+    public ResultResponse Result { get; set; } = new();
+    public AutoVerificationResultInfo? AutoVerification { get; set; }
+    public List<ReflexTriggerResponse> ReflexTriggered { get; set; } = new();
+}
+
+// --- Digital Signature DTOs ---
+
+public class CreateDigitalSignatureRequest
+{
+    public string UserName { get; set; } = string.Empty;
+    public string UserRole { get; set; } = string.Empty;
+    public string? Qualification { get; set; }
+    public string? LicenseNumber { get; set; }
+    public string? SignatureImage { get; set; }
+}
+
+public class DigitalSignatureResponse
+{
+    public string Id { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+    public string UserRole { get; set; } = string.Empty;
+    public string? Qualification { get; set; }
+    public string? LicenseNumber { get; set; }
+    public bool HasSignatureImage { get; set; }
+    public bool IsActive { get; set; }
+    public string? CreatedAt { get; set; }
+}
