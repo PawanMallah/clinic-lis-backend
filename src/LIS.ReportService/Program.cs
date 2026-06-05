@@ -1,4 +1,5 @@
 using LIS.ReportService.Repositories;
+using LIS.ReportService.Services;
 using Shared.Cache;
 using Shared.Extensions;
 using Shared.Middleware;
@@ -12,6 +13,9 @@ builder.Services.AddRedisCache(builder.Configuration);
 
 // Register repositories
 builder.Services.AddScoped<IReportRepository, ReportRepository>();
+
+// Register PDF generator
+builder.Services.AddSingleton<LabReportPdfGenerator>();
 
 // Add controllers
 builder.Services.AddControllers();

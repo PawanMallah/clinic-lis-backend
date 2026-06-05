@@ -1,6 +1,7 @@
 using LIS.ReportService.DTOs;
 using LIS.ReportService.Models;
 using LIS.ReportService.Repositories;
+using LIS.ReportService.Services;
 using Microsoft.AspNetCore.Mvc;
 using Shared.DTOs;
 
@@ -11,10 +12,12 @@ namespace LIS.ReportService.Controllers;
 public class ReportsController : ControllerBase
 {
     private readonly IReportRepository _reportRepository;
+    private readonly LabReportPdfGenerator _pdfGenerator;
 
-    public ReportsController(IReportRepository reportRepository)
+    public ReportsController(IReportRepository reportRepository, LabReportPdfGenerator pdfGenerator)
     {
         _reportRepository = reportRepository;
+        _pdfGenerator = pdfGenerator;
     }
 
     private Guid GetLabId()
@@ -86,6 +89,58 @@ public class ReportsController : ControllerBase
 
         var response = MapToResponse(report);
         return Ok(ApiResponse<ReportResponse>.Ok(response));
+    }
+
+    /// <summary>
+    /// Generate a PDF for a report by ID. Builds LabReportData from the supplied body
+    /// containing all mandatory Section 10.1/10.2 fields and returns the PDF bytes.
+    /// </summary>
+    [HttpPost("{id}/pdf")]
+    public async Task<IActionResult> GeneratePdf(Guid id, [FromBody] GeneratePdfRequest request)
+    {
+        var report = await _reportRepository.GetByIdAsync(id);
+        if (report == null)
+            return NotFound(ApiResponse<object>.Fail("Report not found"));
+
+        // Use reported time from request or fallback to report timestamps
+        if (string.IsNullOrEmpty(request.ReportedAt) && report.GeneratedAt.HasValue)
+            request.ReportedAt = report.GeneratedAt.Value.ToString("dd/MM/yyyy HH:mm");
+
+        if (string.IsNullOrEmpty(request.AccessionNumber) && !string.IsNullOrEmpty(report.ReportNumber))
+            request.AccessionNumber = report.ReportNumber;
+
+        if (string.IsNullOrEmpty(request.ReportStatus))
+            request.ReportStatus = report.Status switch
+            {
+                "finalized" => "Final",
+                "draft" => "Preliminary",
+                "amended" => "Corrected",
+                _ => report.Status
+            };
+
+        var data = request.ToLabReportData();
+        var pdfBytes = _pdfGenerator.GenerateReport(data);
+
+        return File(pdfBytes, "application/pdf", $"report-{report.ReportNumber ?? id.ToString()}.pdf");
+    }
+
+    /// <summary>
+    /// Generate a PDF from raw data without an existing report record.
+    /// Accepts full LabReportData payload and returns PDF bytes directly.
+    /// </summary>
+    [HttpPost("pdf/generate")]
+    public IActionResult GeneratePdfDirect([FromBody] GeneratePdfRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.PatientName))
+            return BadRequest(ApiResponse<object>.Fail("PatientName is required"));
+
+        if (string.IsNullOrWhiteSpace(request.AccessionNumber))
+            return BadRequest(ApiResponse<object>.Fail("AccessionNumber is required"));
+
+        var data = request.ToLabReportData();
+        var pdfBytes = _pdfGenerator.GenerateReport(data);
+
+        return File(pdfBytes, "application/pdf", $"report-{request.AccessionNumber}.pdf");
     }
 
     [HttpPatch("{id}/sign")]
