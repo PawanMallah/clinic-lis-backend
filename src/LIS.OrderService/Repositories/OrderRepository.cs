@@ -46,7 +46,7 @@ public class OrderRepository : BaseRepository, IOrderRepository
 
     public async Task<List<LabOrder>> GetAllAsync(Guid labId, string? status, string? priority, string? search, int page, int pageSize)
     {
-        var sql = @"SELECT id, lab_id AS LabId, patient_id AS PatientId, patient_name AS PatientName, 
+        var sql = @"SELECT id AS Id, lab_id AS LabId, patient_id AS PatientId, patient_name AS PatientName, 
                            patient_uhid AS PatientUhid, patient_age AS PatientAge, patient_gender AS PatientGender,
                            patient_mobile AS PatientMobile, external_order_id AS ExternalOrderId,
                            source_system AS SourceSystem, priority::text AS Priority, status::text AS Status,
